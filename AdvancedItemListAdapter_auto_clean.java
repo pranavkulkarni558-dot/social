@@ -311,6 +311,33 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
 
         holder.playerView.setUseController(false);
         holder.playerView.setPlayer(sharedPlayer);
+
+// Added by ChatGPT — double-tap like on the playing video
+        if (holder.playerView != null) {
+            final GestureDetector playerGestureDetector = new GestureDetector(holder.playerView.getContext(), new GestureDetector.SimpleOnGestureListener() {
+                @Override
+                public boolean onDoubleTap(MotionEvent e) {
+                    if (App.getInstance().getId() != 0 && !p.isMyLike()) {
+                        p.setMyLike(true);
+                        p.setLikesCount(p.getLikesCount() + 1);
+                        notifyItemChanged(position);
+                        like(p, position, 0);
+                    }
+                    showHeartAnimation(holder.mHeartOverlay);
+                    return true;
+                }
+                @Override
+                public boolean onSingleTapConfirmed(MotionEvent e) {
+                    // Optional: pause/play video, or do nothing.
+                    return false;
+                }
+            });
+            holder.playerView.setOnTouchListener((v, event) -> {
+                playerGestureDetector.onTouchEvent(event);
+                return false; // Allow player controls to still work
+            });
+        }
+// End ChatGPT block
         holder.playerView.setVisibility(View.VISIBLE);
         holder.btnMute.setVisibility(View.VISIBLE);
         holder.mVideoProgressBar.setVisibility(View.VISIBLE);
@@ -781,6 +808,33 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
 
                 com.google.android.exoplayer2.ExoPlayer exoPlayer = new com.google.android.exoplayer2.ExoPlayer.Builder(context).build();
                 holder.playerView.setPlayer(exoPlayer);
+
+// Added by ChatGPT — double-tap like on the playing video
+                if (holder.playerView != null) {
+                    final GestureDetector playerGestureDetector = new GestureDetector(holder.playerView.getContext(), new GestureDetector.SimpleOnGestureListener() {
+                        @Override
+                        public boolean onDoubleTap(MotionEvent e) {
+                            if (App.getInstance().getId() != 0 && !p.isMyLike()) {
+                                p.setMyLike(true);
+                                p.setLikesCount(p.getLikesCount() + 1);
+                                notifyItemChanged(position);
+                                like(p, position, 0);
+                            }
+                            showHeartAnimation(holder.mHeartOverlay);
+                            return true;
+                        }
+                        @Override
+                        public boolean onSingleTapConfirmed(MotionEvent e) {
+                            // Optional: pause/play video, or do nothing.
+                            return false;
+                        }
+                    });
+                    holder.playerView.setOnTouchListener((v, event) -> {
+                        playerGestureDetector.onTouchEvent(event);
+                        return false; // Allow player controls to still work
+                    });
+                }
+// End ChatGPT block
                 holder.playerView.setVisibility(View.VISIBLE);
                 holder.btnMute.setVisibility(View.VISIBLE);
 
