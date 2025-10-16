@@ -1,6 +1,14 @@
 package finix.social.finixapp.adapter;
 
-import android.annotation.SuppressLint;
+
+import com.google.android.exoplayer2.util.MimeTypes;
+import com.google.android.exoplayer2.trackselection.TrackSelectionParameters;
+import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.SeekParameters;
+import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.DefaultRenderersFactory;
+import com.google.android.exoplayer2.DefaultLoadControl;
+import android.graphics.Rect;import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.view.GestureDetector;
 import android.view.GestureDetector.SimpleOnGestureListener;
@@ -118,6 +126,12 @@ import finix.social.finixapp.view.ResizableImageView;
 
 
 public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemListAdapter.ViewHolder> implements Constants, TagClick {
+    // === Shared ExoPlayer + state (merged) ===
+    private com.google.android.exoplayer2.ExoPlayer sharedPlayer = null;
+    private DefaultTrackSelector sharedTrackSelector = null;
+    private ViewHolder sharedHolder = null;
+    private int sharedPosition = RecyclerView.NO_POSITION;
+
     // --- ExoPlayer Auto-Play/Stop Logic ---
 
     // These helpers allow your fragment to wire up auto-play/stop.
@@ -183,7 +197,14 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
             if (!(vh instanceof ViewHolder)) continue;
             ViewHolder holder = (ViewHolder) vh;
 
-            View candidate = (holder.playerView.getVisibility() == View.VISIBLE) ? holder.playerView : holder.mVideoLayout;
+            View candidate = null;
+            if (holder.playerView != null && holder.playerView.getVisibility() == View.VISIBLE) {
+                candidate = holder.playerView;
+            } else if (holder.mVideoLayout != null) {
+                candidate = holder.mVideoLayout;
+            }
+            if (candidate == null) continue; // Defensive: skip if neither view exists
+
             int visible = getVisibleHeightPercent(candidate, attachedRecyclerView);
             if (visible > bestVisible) {
                 bestVisible = visible;
@@ -211,7 +232,8 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
 
     // Get the percent of the view visible in RecyclerView
     private int getVisibleHeightPercent(@NonNull View child, @NonNull RecyclerView parent) {
-        android.graphics.Rect rect = new android.graphics.Rect();
+        if (child == null) return 0;
+        Rect rect = new Rect();
         boolean isVisible = child.getGlobalVisibleRect(rect);
         if (!isVisible) return 0;
         int visibleHeight = rect.height();
@@ -226,65 +248,112 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
 
     // --- ExoPlayer Setup for Playing a Video ---
     public void playVideo(ViewHolder holder, int position, boolean autoMuted) {
-        int adapterPos = holder.getAdapterPosition();
-        if (adapterPos == RecyclerView.NO_POSITION) return;
-        position = adapterPos; // ensure fresh position
+        int ap = holder.getAdapterPosition();
+        if (ap == RecyclerView.NO_POSITION) return;
+        position = ap;
 
         Item p = items.get(position);
+        if (p == null) return;
+        String url = p.getVideoUrl();
+        if (url == null || url.trim().isEmpty()) return;
 
-        if (currentPlayerViewHolder != null && currentPlayerViewHolder != holder) {
-            currentPlayerViewHolder.releasePlayer();
+        if (sharedHolder != null && sharedHolder != holder) {
+            try { if (sharedHolder.playerView != null) sharedHolder.playerView.setPlayer(null); } catch (Throwable ignore) {}
         }
-        if (currentPlayer != null && currentPlayingPosition != position) {
-            currentPlayer.release();
-            currentPlayer = null;
-        }
-        holder.releasePlayer();
 
+        if (sharedPlayer == null) {
+            try {
+                sharedTrackSelector = new DefaultTrackSelector(context);
+                TrackSelectionParameters params = new TrackSelectionParameters.Builder(context)
+                        .setMaxVideoSizeSd()
+                        .setMaxVideoBitrate(2_000_000)
+                        .setAllowedVideoMimeTypes(new String[]{ com.google.android.exoplayer2.util.MimeTypes.VIDEO_H264 })
+                        .build();
+                sharedTrackSelector.setParameters(params);
+
+                sharedPlayer = new com.google.android.exoplayer2.ExoPlayer.Builder(
+                        context,
+                        new DefaultRenderersFactory(context).setEnableDecoderFallback(true)
+                )
+                        .setTrackSelector(sharedTrackSelector)
+                        .setLoadControl(new DefaultLoadControl.Builder()
+                                .setBufferDurationsMs(15000, 30000, 1500, 2500)
+                                .setPrioritizeTimeOverSizeThresholds(true)
+                                .build())
+                        .build();
+
+                try { sharedPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT); } catch (Throwable ignore) {}
+                try { sharedPlayer.setSeekParameters(SeekParameters.CLOSEST_SYNC); } catch (Throwable ignore) {}
+
+                sharedPlayer.addListener(new com.google.android.exoplayer2.Player.Listener() {
+                    @Override
+                    public void onPlaybackStateChanged(int state) {
+                        if (sharedHolder != null && state == com.google.android.exoplayer2.Player.STATE_READY) {
+                            try { sharedHolder.mVideoProgressBar.setVisibility(View.GONE); } catch (Throwable ignore) {}
+                        }
+                    }
+                    @Override
+                    public void onPlayerError(com.google.android.exoplayer2.PlaybackException error) {
+                        Log.e("ExoPlayer", "onPlayerError", error);
+                        if (sharedHolder != null) {
+                            try {
+                                sharedHolder.mVideoProgressBar.setVisibility(View.GONE);
+                                sharedHolder.playerView.setVisibility(View.GONE);
+                                sharedHolder.mVideoImg.setVisibility(View.VISIBLE);
+                                sharedHolder.mItemPlayVideo.setVisibility(View.VISIBLE);
+                                sharedHolder.btnMute.setVisibility(View.GONE);
+                            } catch (Throwable ignored) {}
+                        }
+                        try { sharedPlayer.stop(); } catch (Throwable ignored) {}
+                    }
+                });
+            } catch (Throwable t) {
+                Log.e("ExoPlayer", "Failed to build shared player", t);
+                return;
+            }
+        }
+
+        holder.playerView.setUseController(false);
+        holder.playerView.setPlayer(sharedPlayer);
         holder.playerView.setVisibility(View.VISIBLE);
         holder.btnMute.setVisibility(View.VISIBLE);
         holder.mVideoProgressBar.setVisibility(View.VISIBLE);
         holder.mVideoImg.setVisibility(View.GONE);
         holder.mItemPlayVideo.setVisibility(View.GONE);
 
-        com.google.android.exoplayer2.ExoPlayer exoPlayer = new com.google.android.exoplayer2.ExoPlayer.Builder(context).build();
-        holder.playerView.setPlayer(exoPlayer);
+        com.google.android.exoplayer2.MediaItem mediaItem =
+                com.google.android.exoplayer2.MediaItem.fromUri(Uri.parse(url));
+        try {
+            sharedPlayer.setMediaItem(mediaItem);
+            sharedPlayer.prepare();
+            sharedPlayer.setPlayWhenReady(true);
+        } catch (Throwable t) {
+            Log.e("ExoPlayer", "prepare failed", t);
+            try { sharedPlayer.stop(); } catch (Throwable ignored) {}
+            holder.playerView.setVisibility(View.GONE);
+            holder.mVideoImg.setVisibility(View.VISIBLE);
+            holder.mItemPlayVideo.setVisibility(View.VISIBLE);
+            holder.mVideoProgressBar.setVisibility(View.GONE);
+            holder.btnMute.setVisibility(View.GONE);
+            return;
+        }
 
-        com.google.android.exoplayer2.MediaItem mediaItem = com.google.android.exoplayer2.MediaItem.fromUri(p.getVideoUrl());
-        exoPlayer.setMediaItem(mediaItem);
-        exoPlayer.prepare();
-        exoPlayer.setPlayWhenReady(true);
-
-        exoPlayer.setVolume(autoMuted ? 0f : 1f); // auto-play: muted, manual: unmuted
+        sharedPlayer.setVolume(autoMuted ? 0f : 1f);
         holder.btnMute.setImageResource(autoMuted ? R.drawable.btn_unmute : R.drawable.btn_mute);
-        holder.btnMute.setOnClickListener(muteBtn -> {
-            if (exoPlayer.getVolume() == 0f) {
-                exoPlayer.setVolume(1f);
-                holder.btnMute.setImageResource(R.drawable.btn_mute);
-            } else {
-                exoPlayer.setVolume(0f);
-                holder.btnMute.setImageResource(R.drawable.btn_unmute);
-            }
+        holder.btnMute.setOnClickListener(v -> {
+            try {
+                if (sharedPlayer.getVolume() == 0f) {
+                    sharedPlayer.setVolume(1f);
+                    holder.btnMute.setImageResource(R.drawable.btn_mute);
+                } else {
+                    sharedPlayer.setVolume(0f);
+                    holder.btnMute.setImageResource(R.drawable.btn_unmute);
+                }
+            } catch (Throwable ignore) {}
         });
 
-        exoPlayer.addListener(new com.google.android.exoplayer2.Player.Listener() {
-            @Override
-            public void onPlaybackStateChanged(int state) {
-                if (state == com.google.android.exoplayer2.Player.STATE_READY) {
-                    holder.mVideoProgressBar.setVisibility(View.GONE);
-                }
-                if (state == com.google.android.exoplayer2.Player.STATE_ENDED) {
-                    holder.releasePlayer();
-                    holder.mVideoImg.setVisibility(View.VISIBLE);
-                    holder.mItemPlayVideo.setVisibility(View.VISIBLE);
-                }
-            }
-        });
-
-        holder.exoPlayer = exoPlayer;
-        currentPlayer = exoPlayer;
-        currentPlayerViewHolder = holder;
-        currentPlayingPosition = position;
+        sharedHolder = holder;
+        sharedPosition = position;
     }
 
     // Optional: helpers for fragment lifecycle
