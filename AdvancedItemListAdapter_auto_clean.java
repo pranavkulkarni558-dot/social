@@ -312,7 +312,10 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
         holder.playerView.setUseController(false);
         holder.playerView.setPlayer(sharedPlayer);
 
-// Added by ChatGPT — double-tap like on the playing video
+// --- ADD THIS SNIPPET after you set up the player in onBindViewHolder or onBindItem, right after holder.playerView.setPlayer(...):
+
+        final int adapterPosition = position; // ensure it's final for inner classes
+
         if (holder.playerView != null) {
             final GestureDetector playerGestureDetector = new GestureDetector(holder.playerView.getContext(), new GestureDetector.SimpleOnGestureListener() {
                 @Override
@@ -320,8 +323,8 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
                     if (App.getInstance().getId() != 0 && !p.isMyLike()) {
                         p.setMyLike(true);
                         p.setLikesCount(p.getLikesCount() + 1);
-                        notifyItemChanged(position);
-                        like(p, position, 0);
+                        notifyItemChanged(adapterPosition);
+                        like(p, adapterPosition, 0);
                     }
                     showHeartAnimation(holder.mHeartOverlay);
                     return true;
@@ -332,12 +335,14 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
                     return false;
                 }
             });
-            holder.playerView.setOnTouchListener((v, event) -> {
+            holder.playerView.setOnTouchListener((view, event) -> {
                 playerGestureDetector.onTouchEvent(event);
-                return false; // Allow player controls to still work
+                return false; // Let player controls still work
             });
         }
-// End ChatGPT block
+
+// Place this code wherever you initialize the player and show the playerView for a video item.
+// This will make double-tap-to-like work on the playing video as well.
         holder.playerView.setVisibility(View.VISIBLE);
         holder.btnMute.setVisibility(View.VISIBLE);
         holder.mVideoProgressBar.setVisibility(View.VISIBLE);
@@ -809,7 +814,10 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
                 com.google.android.exoplayer2.ExoPlayer exoPlayer = new com.google.android.exoplayer2.ExoPlayer.Builder(context).build();
                 holder.playerView.setPlayer(exoPlayer);
 
-// Added by ChatGPT — double-tap like on the playing video
+// --- ADD THIS SNIPPET after you set up the player in onBindViewHolder or onBindItem, right after holder.playerView.setPlayer(...):
+
+                final int adapterPosition = position; // ensure it's final for inner classes
+
                 if (holder.playerView != null) {
                     final GestureDetector playerGestureDetector = new GestureDetector(holder.playerView.getContext(), new GestureDetector.SimpleOnGestureListener() {
                         @Override
@@ -817,8 +825,8 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
                             if (App.getInstance().getId() != 0 && !p.isMyLike()) {
                                 p.setMyLike(true);
                                 p.setLikesCount(p.getLikesCount() + 1);
-                                notifyItemChanged(position);
-                                like(p, position, 0);
+                                notifyItemChanged(adapterPosition);
+                                like(p, adapterPosition, 0);
                             }
                             showHeartAnimation(holder.mHeartOverlay);
                             return true;
@@ -829,12 +837,14 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
                             return false;
                         }
                     });
-                    holder.playerView.setOnTouchListener((v, event) -> {
+                    holder.playerView.setOnTouchListener((view, event) -> {
                         playerGestureDetector.onTouchEvent(event);
-                        return false; // Allow player controls to still work
+                        return false; // Let player controls still work
                     });
                 }
-// End ChatGPT block
+
+// Place this code wherever you initialize the player and show the playerView for a video item.
+// This will make double-tap-to-like work on the playing video as well.
                 holder.playerView.setVisibility(View.VISIBLE);
                 holder.btnMute.setVisibility(View.VISIBLE);
 
@@ -1403,7 +1413,7 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
                         return true;
                     }
                 });
-                holder.mVideoImg.setOnTouchListener((v, event) -> {
+                holder.mVideoImg.setOnTouchListener((view, event) -> {
                     videoGestureDetector.onTouchEvent(event);
                     return true;
                 });
@@ -1475,7 +1485,7 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
                 return true;
             }
         });
-        holder.mItemImg.setOnTouchListener((v, event) -> {
+        holder.mItemImg.setOnTouchListener((view, event) -> {
             gestureDetector.onTouchEvent(event);
             return true;
         });
