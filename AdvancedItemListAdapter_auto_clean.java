@@ -245,6 +245,17 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
 
     // --- ExoPlayer Setup for Playing a Video ---
     public void playVideo(ViewHolder holder, int position, boolean autoMuted) {
+        // If this video is already playing, do NOT reset/restart it!
+        if (sharedPosition == position && sharedPlayer != null && sharedPlayer.isPlaying()) {
+            // Already playing, just ensure it's visible and controls are set.
+            holder.playerView.setVisibility(View.VISIBLE);
+            holder.btnMute.setVisibility(View.VISIBLE);
+            holder.mVideoProgressBar.setVisibility(View.GONE);
+            holder.mVideoImg.setVisibility(View.GONE);
+            holder.mItemPlayVideo.setVisibility(View.GONE);
+            return;
+        }
+
         int ap = holder.getAdapterPosition();
         if (ap == RecyclerView.NO_POSITION) return;
         position = ap;
@@ -311,38 +322,6 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
 
         holder.playerView.setUseController(false);
         holder.playerView.setPlayer(sharedPlayer);
-
-// --- ADD THIS SNIPPET after you set up the player in onBindViewHolder or onBindItem, right after holder.playerView.setPlayer(...):
-
-        final int adapterPosition = position; // ensure it's final for inner classes
-
-        if (holder.playerView != null) {
-            final GestureDetector playerGestureDetector = new GestureDetector(holder.playerView.getContext(), new GestureDetector.SimpleOnGestureListener() {
-                @Override
-                public boolean onDoubleTap(MotionEvent e) {
-                    if (App.getInstance().getId() != 0 && !p.isMyLike()) {
-                        p.setMyLike(true);
-                        p.setLikesCount(p.getLikesCount() + 1);
-                        notifyItemChanged(adapterPosition);
-                        like(p, adapterPosition, 0);
-                    }
-                    showHeartAnimation(holder.mHeartOverlay);
-                    return true;
-                }
-                @Override
-                public boolean onSingleTapConfirmed(MotionEvent e) {
-                    // Optional: pause/play video, or do nothing.
-                    return false;
-                }
-            });
-            holder.playerView.setOnTouchListener((view, event) -> {
-                playerGestureDetector.onTouchEvent(event);
-                return false; // Let player controls still work
-            });
-        }
-
-// Place this code wherever you initialize the player and show the playerView for a video item.
-// This will make double-tap-to-like work on the playing video as well.
         holder.playerView.setVisibility(View.VISIBLE);
         holder.btnMute.setVisibility(View.VISIBLE);
         holder.mVideoProgressBar.setVisibility(View.VISIBLE);
@@ -813,38 +792,6 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
 
                 com.google.android.exoplayer2.ExoPlayer exoPlayer = new com.google.android.exoplayer2.ExoPlayer.Builder(context).build();
                 holder.playerView.setPlayer(exoPlayer);
-
-// --- ADD THIS SNIPPET after you set up the player in onBindViewHolder or onBindItem, right after holder.playerView.setPlayer(...):
-
-                final int adapterPosition = position; // ensure it's final for inner classes
-
-                if (holder.playerView != null) {
-                    final GestureDetector playerGestureDetector = new GestureDetector(holder.playerView.getContext(), new GestureDetector.SimpleOnGestureListener() {
-                        @Override
-                        public boolean onDoubleTap(MotionEvent e) {
-                            if (App.getInstance().getId() != 0 && !p.isMyLike()) {
-                                p.setMyLike(true);
-                                p.setLikesCount(p.getLikesCount() + 1);
-                                notifyItemChanged(adapterPosition);
-                                like(p, adapterPosition, 0);
-                            }
-                            showHeartAnimation(holder.mHeartOverlay);
-                            return true;
-                        }
-                        @Override
-                        public boolean onSingleTapConfirmed(MotionEvent e) {
-                            // Optional: pause/play video, or do nothing.
-                            return false;
-                        }
-                    });
-                    holder.playerView.setOnTouchListener((view, event) -> {
-                        playerGestureDetector.onTouchEvent(event);
-                        return false; // Let player controls still work
-                    });
-                }
-
-// Place this code wherever you initialize the player and show the playerView for a video item.
-// This will make double-tap-to-like work on the playing video as well.
                 holder.playerView.setVisibility(View.VISIBLE);
                 holder.btnMute.setVisibility(View.VISIBLE);
 
@@ -1413,7 +1360,7 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
                         return true;
                     }
                 });
-                holder.mVideoImg.setOnTouchListener((view, event) -> {
+                holder.mVideoImg.setOnTouchListener((v, event) -> {
                     videoGestureDetector.onTouchEvent(event);
                     return true;
                 });
@@ -1485,7 +1432,7 @@ public class AdvancedItemListAdapter extends RecyclerView.Adapter<AdvancedItemLi
                 return true;
             }
         });
-        holder.mItemImg.setOnTouchListener((view, event) -> {
+        holder.mItemImg.setOnTouchListener((v, event) -> {
             gestureDetector.onTouchEvent(event);
             return true;
         });
